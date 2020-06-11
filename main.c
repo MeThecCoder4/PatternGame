@@ -4,6 +4,7 @@
 #include <util/atomic.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <string.h>
 
 #define RED_LED PORTC3
 #define YELLOW_LED PORTC4
@@ -11,7 +12,8 @@
 #define BUTTON0 PORTD7
 #define BUTTON1 PORTD6
 #define BUTTON2 PORTD5
-#define PATTERN_LENGTH 5
+#define MAX_PATTERN_LENGTH 15
+#define MIN_PATTERN_LENGTH 3
 
 // Decrease 2 bit vertical counter where mask = 1.
 // Set counters to binary 11 where mask = 0.
@@ -46,8 +48,9 @@ enum game_state
 };
 
 // The pattern is initialized during the main procedure
-uint8_t pattern[PATTERN_LENGTH];
-uint8_t user_pattern[PATTERN_LENGTH];
+uint8_t pattern[MAX_PATTERN_LENGTH];
+uint8_t user_pattern[MAX_PATTERN_LENGTH];
+uint8_t pattern_length = MIN_PATTERN_LENGTH;
 int8_t pattern_index = 0;
 volatile enum game_state gstate = STARTING;
 // Variable to tell that the button is pressed (and debounced).
@@ -93,7 +96,7 @@ ISR(TIMER0_COMPA_vect)
 
 static uint8_t check_game_outcome(void)
 {
-  for (uint8_t i = 0; i < PATTERN_LENGTH; i++)
+  for (uint8_t i = 0; i < pattern_length; i++)
     if (pattern[i] != user_pattern[i])
       return 1;
 
@@ -193,15 +196,18 @@ static void record_pattern(void)
 // Fills an array with random pattern of 0, 1 or 2 at each index
 // representing led port indexes (led0, led1, led2) to set
 static void get_random_pattern(uint8_t *pattern_arr,
-                               const uint8_t arr_length)
+                               const uint8_t pattern_length)
 {
-  for (uint8_t i = 0; i < arr_length; i++)
+  // Clear pattern_arr
+  memset((uint8_t*)pattern_arr, 0, MAX_PATTERN_LENGTH * sizeof(uint8_t));
+
+  for (uint8_t i = 0; i < pattern_length; i++)
   {
     pattern_arr[i] = rand() % 3;
   }
 }
 
-// Returns 1 if pattern_index > PATTERN_LENGTH - 1.
+// Returns 1 if pattern_index > pattern_length - 1.
 // Otherwise lights up another led according to the pattern and returns 0.
 static inline uint8_t next_pattern_part(void)
 {
@@ -211,7 +217,7 @@ static inline uint8_t next_pattern_part(void)
   if (call_counter == UINT8_MAX)
     call_counter = 0;
 
-  if (pattern_index < 0 || pattern_index > PATTERN_LENGTH - 1)
+  if (pattern_index < 0 || pattern_index > pattern_length - 1)
     return 1;
   // Only one of two calls of this function lights a led
   // to make led blinks differentiable for an user.
@@ -249,7 +255,7 @@ static void enable_timer0(void)
   TCCR0B = (1 << CS01) | (1 << CS00);
   // Clear counter value
   TCNT0 = 0;
-  // Compare interrupt value for 10 ms (actualy 9.984ms ~ 100.16Hz)
+  // Compare interrupt value for 10 ms (actually 9.984ms ~ 100.16Hz)
   OCR0A = 155;
   // Set interrupt on TCNT0 == OCR0A
   TIMSK0 |= (1 << OCIE0A);
@@ -294,7 +300,7 @@ int main(void)
       {
         // Set seed based on current timer1 counter value
         srand((unsigned int)TCNT1);
-        get_random_pattern(pattern, PATTERN_LENGTH);
+        get_random_pattern(pattern, pattern_length);
         clear_leds();
         pattern_index = 0;
         // Standard blink length 500ms
@@ -308,13 +314,23 @@ int main(void)
       // on timer1 compA interrupt routine.
       break;
     case RECORDING_PATTERN:
-      if (pattern_index > PATTERN_LENGTH - 1)
+      if (pattern_index > pattern_length - 1)
       {
         if (check_game_outcome())
+        {
+          pattern_length = MIN_PATTERN_LENGTH;
           gstate = GAME_OVER;
+        }
         else
+        {
           // Game won
           gstate = STARTING;
+
+          if(pattern_length > MAX_PATTERN_LENGTH)
+            pattern_length = MIN_PATTERN_LENGTH;
+          else
+            pattern_length++;
+        }
       }
       else
       {
