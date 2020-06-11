@@ -12,7 +12,7 @@
 #define BUTTON0 PORTD7
 #define BUTTON1 PORTD6
 #define BUTTON2 PORTD5
-#define MAX_PATTERN_LENGTH 15
+#define MAX_PATTERN_LENGTH 5
 #define MIN_PATTERN_LENGTH 3
 
 // Decrease 2 bit vertical counter where mask = 1.
@@ -314,6 +314,7 @@ int main(void)
       // on timer1 compA interrupt routine.
       break;
     case RECORDING_PATTERN:
+      // User has finished
       if (pattern_index > pattern_length - 1)
       {
         if (check_game_outcome())
@@ -326,12 +327,13 @@ int main(void)
           // Game won
           gstate = STARTING;
 
-          if(pattern_length > MAX_PATTERN_LENGTH)
+          if(pattern_length == MAX_PATTERN_LENGTH)
             pattern_length = MIN_PATTERN_LENGTH;
           else
             pattern_length++;
         }
       }
+      // Record user clicks
       else
       {
         // User clicks last only 250ms
