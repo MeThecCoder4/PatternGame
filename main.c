@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include "./avr-nokia5110-master/nokia5110.h"
 
 #define RED_LED PORTC3
 #define YELLOW_LED PORTC4
@@ -12,7 +13,7 @@
 #define BUTTON0 PORTD7
 #define BUTTON1 PORTD6
 #define BUTTON2 PORTD5
-#define MAX_PATTERN_LENGTH 5
+#define MAX_PATTERN_LENGTH 50
 #define MIN_PATTERN_LENGTH 3
 
 // Decrease 2 bit vertical counter where mask = 1.
@@ -37,6 +38,7 @@ static int8_t get_user_pattern_part(void);
 static void record_pattern(void);
 static inline void blink_selected_led(const uint8_t led_index);
 static uint8_t check_game_outcome(void);
+static void update_lcd(void);
 
 enum game_state
 {
@@ -92,6 +94,34 @@ ISR(TIMER0_COMPA_vect)
 {
   TCNT0 = 0;
   debounce();
+}
+
+static void update_lcd(void)
+{
+  char text[32];
+  char number[3];
+  memset((char *)text, '\0', 32);
+  nokia_lcd_clear();
+
+  if (gstate == GAME_OVER)
+  {
+    nokia_lcd_write_string("GAME OVER!", 1);
+    nokia_lcd_set_cursor(0, 10);
+  }
+  else if (gstate == STARTING && pattern_length > MIN_PATTERN_LENGTH)
+  {
+    nokia_lcd_write_string("Keep going!", 1);
+    nokia_lcd_set_cursor(0, 10);
+  }
+
+  memset((char *)text, '\0', 32);
+  strcpy((char *)text, "Level: ");
+  // Convert pattern_length into level number
+  itoa(pattern_length - 2, number, 10);
+  // Example: Level: 5
+  strcat(text, number);
+  nokia_lcd_write_string(text, 1);
+  nokia_lcd_render();
 }
 
 static uint8_t check_game_outcome(void)
@@ -199,7 +229,7 @@ static void get_random_pattern(uint8_t *pattern_arr,
                                const uint8_t pattern_length)
 {
   // Clear pattern_arr
-  memset((uint8_t*)pattern_arr, 0, MAX_PATTERN_LENGTH * sizeof(uint8_t));
+  memset((uint8_t *)pattern_arr, 0, MAX_PATTERN_LENGTH * sizeof(uint8_t));
 
   for (uint8_t i = 0; i < pattern_length; i++)
   {
@@ -267,7 +297,7 @@ static void enable_timer1(void)
   TCCR1B |= (1 << CS11) | (1 << CS10);
   // Clear counter value
   TCNT1 = 0;
-  // Compare interrupt value for 500 second
+  // Compare interrupt value for 500 ms
   OCR1A = 7812;
   // Set interrupt on TCNT1 == OCR1A
   TIMSK1 |= (1 << OCIE1A);
@@ -283,6 +313,10 @@ static void init_gpio(void)
 
 int main(void)
 {
+  nokia_lcd_init();
+  nokia_lcd_clear();
+  nokia_lcd_write_string("PRESS RIGHT ->", 1);
+  nokia_lcd_render();
   init_gpio();
   // Enable interrupts
   sei();
@@ -319,15 +353,17 @@ int main(void)
       {
         if (check_game_outcome())
         {
-          pattern_length = MIN_PATTERN_LENGTH;
           gstate = GAME_OVER;
+          update_lcd();
+          pattern_length = MIN_PATTERN_LENGTH;
         }
         else
         {
           // Game won
           gstate = STARTING;
+          update_lcd();
 
-          if(pattern_length == MAX_PATTERN_LENGTH)
+          if (pattern_length == MAX_PATTERN_LENGTH)
             pattern_length = MIN_PATTERN_LENGTH;
           else
             pattern_length++;

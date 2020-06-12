@@ -6,6 +6,7 @@ DUDE_PORT = usb
 
 TARGET=main
 OBJS=$(TARGET).o
+OTHERS=./avr-nokia5110-master/nokia5110
 
 OPTIMIZE = Os
 CC = avr-gcc
@@ -37,8 +38,10 @@ PROGRAM = $(ESC)33;40;1m
 STOP = $(ESC)0m
 
 all: $(OBJS)
+	@echo -e " $(DEBUG)>>> Creating dependency objects...$(STOP)"
+	$(CC) $(CFLAGS) -c $(OTHERS).c
 	@echo -e " $(DEBUG)>>> Creating TARGET...$(STOP)"
-	$(CC) $(CFLAGS) -Wl,-Map,$(TARGET).map -o $(TARGET).elf $(OBJS)
+	$(CC) $(CFLAGS) -Wl,-Map,$(TARGET).map -o $(TARGET).elf $(OBJS) nokia5110.o
 	@echo -e " $(DEBUG)>>> Creating HEX...$(STOP)"
 	$(OBJCOPY) -j .text -j .data -O ihex $(TARGET).elf $(TARGET).hex
 	@echo -e "  $(DEBUG)>>> Size dump:$(STOP)"
