@@ -2,3 +2,5 @@
 *.hex
 *.map
 *.elf
+circuit
+kicad-libs-master
